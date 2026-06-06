@@ -15,6 +15,11 @@ python3 scripts/cts/cts_report.py \
   --reports-dir $ORFS/reports/$P/$D/base --clock-net clk_i \
   --out reports/ibex_cts_analysis.md
 
+# --- Ibex base per-design QoR (incl. 0-DRC route, signoff timing) ---
+python3 scripts/parse/parse_flow.py --design ibex --platform $P --variant base \
+  --log-dir $ORFS/logs/$P/$D/base --results-dir $ORFS/results/$P/$D/base \
+  --reports-dir $ORFS/reports/$P/$D/base --out reports/ibex_base_qor.md
+
 # --- E1 clock-period ladder (post-CTS; shows the wall shape) ---
 PE --title "E1 — clock-period ladder (Ibex / sky130hd, post-CTS STA)" --rowlabel "Clock (ns)" \
   --cols setup_ws,hold_ws,fmax,area,clk_buffers \

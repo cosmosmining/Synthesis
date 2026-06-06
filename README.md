@@ -10,7 +10,8 @@ the tool logs, nothing hand-typed** (`scripts/gen_reports.sh` regenerates all of
 > synthesis and timing analysis", and "run synthesis, review QoR" — backing STA
 > and CTS theory with artifacts I generated and can defend line by line.
 
-Design under study: **lowRISC Ibex** (RV32IMC core, ~24k cells synthesized).
+Design under study: **lowRISC Ibex** (RV32IMC core, 16,175 synthesized standard
+cells / 19,722 nets; 95k final instances incl. fill).
 `gcd` is the fast end-to-end smoke test.
 
 ## Status — all deliverables complete
@@ -114,7 +115,7 @@ power straps right — rendered headless with KLayout (`scripts/klayout_png.py`)
 
 ## Résumé bullets (every number traceable to a report here)
 
-- Implemented **lowRISC Ibex (RV32 core, ~24k placed instances) RTL→GDSII on the
+- Implemented **lowRISC Ibex (RV32 core, 16,175 standard cells) RTL→GDSII on the
   open sky130 PDK** with OpenROAD / Yosys / OpenSTA, reaching **0-DRC** detailed
   routing; built a parameterized **Make + Python** flow that auto-extracts all QoR
   (WNS/TNS, skew, insertion, power, congestion) from tool logs — **zero
