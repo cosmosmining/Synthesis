@@ -1,56 +1,53 @@
 # rtl2gds-sta-lab
 
 Take real RTL through the **OpenROAD-flow-scripts (ORFS)** RTL→GDS flow on the
-open **sky130hd** PDK, then write the STA/CTS/PPA analysis a strong junior
-physical-design engineer would present — every number script-extracted from the
-tool logs, nothing hand-typed.
+open **sky130hd** PDK, then write the STA / CTS / PPA analysis a strong junior
+physical-design engineer would present — **every number script-extracted from
+the tool logs, nothing hand-typed** (`scripts/gen_reports.sh` regenerates all of
+`reports/`).
 
-> Built as interview-prep evidence for "deliver a synthesis/timing-clean
-> design", "logic synthesis and timing analysis", and "run synthesis, review
-> QoR" — backing STA and CTS theory with artifacts I generated and can defend
-> line by line.
+> Interview-prep evidence for "deliver a synthesis/timing-clean design", "logic
+> synthesis and timing analysis", and "run synthesis, review QoR" — backing STA
+> and CTS theory with artifacts I generated and can defend line by line.
 
-## Status
+Design under study: **lowRISC Ibex** (RV32IMC core, ~24k cells synthesized).
+`gcd` is the fast end-to-end smoke test.
 
-| Stage | State |
-|---|---|
-| 0. Environment bring-up + toolchain proof | ✅ done |
-| 1. Flow bring-up (smallest config end-to-end) | ✅ `gcd`/sky130hd RTL→GDS, 0 DRC |
-| 2. STA deep-dive (constraints, top-5 setup/hold) | 🔜 |
-| 3. CTS analysis (pre/post, skew, topology) | 🔜 |
-| 4. Experiments E1–E4 (Fmax wall, pipelining, util, CDC) | 🔜 |
-| 5. `docs/sta_cts_field_notes.md` | 🔜 (skeleton in repo) |
-| 6. Final PPA table + layout screenshots + resume bullets | 🔜 |
+## Status — all deliverables complete
 
-The lab design is **lowRISC Ibex** (the `axi-qos-fabric` repo is not present in
-this workspace, so per the project brief we fall back to Ibex). `gcd` is used
-only as the fast end-to-end smoke test.
+| # | Deliverable | Where |
+|---|---|---|
+| 0 | Environment + toolchain bring-up | [`docs/00_environment.md`](docs/00_environment.md) |
+| 1 | Flow bring-up (gcd RTL→GDS, 0 DRC) | [`reports/gcd_base_qor.md`](reports/gcd_base_qor.md) |
+| 2 | STA deep-dive (top-5 setup/hold, defensible SDC) | [`docs/sta_deep_dive.md`](docs/sta_deep_dive.md), [`docs/constraints.md`](docs/constraints.md), [`reports/ibex_sta_paths.md`](reports/ibex_sta_paths.md) |
+| 3 | CTS analysis (pre/post, skew, topology) | [`reports/ibex_cts_analysis.md`](reports/ibex_cts_analysis.md) |
+| 4 | Experiments E1/E2/E3 | [`reports/E1_clock_sweep.md`](reports/E1_clock_sweep.md), [`reports/E2_pipelining.md`](reports/E2_pipelining.md), [`reports/E3_util_sweep.md`](reports/E3_util_sweep.md) |
+| 5 | STA/CTS field notes (theory + my numbers) | [`docs/sta_cts_field_notes.md`](docs/sta_cts_field_notes.md) |
+| 6 | README: flow, PPA, layout, resume bullets | this file |
 
 ## Toolchain (and why it isn't the ORFS Docker image)
 
-The canonical ORFS path is `docker pull openroad/orfs`. In this environment the
-Docker **daemon starts**, but the image-layer CDN
-(`production.cloudfront.docker.com`) is firewalled — every blob returns
-HTTP 403 — so no image can be pulled. We therefore run **native binaries** and
-use the ORFS git tree only for its flow scripts + sky130hd platform files:
+`docker pull openroad/orfs` is the canonical path, but here the Docker **daemon
+starts yet the layer CDN (`production.cloudfront.docker.com`) is firewalled —
+every blob returns HTTP 403**, so no image can be pulled. So I run **native
+binaries** and use the ORFS git tree only for its flow scripts + sky130hd files:
 
-| Tool | Source | Version (pinned) |
+| Tool | Source | Pinned |
 |---|---|---|
-| OpenROAD (OpenSTA compiled in) | conda `litex-hub` | `f12e2f474` (build `2.0_3175`) |
+| OpenROAD (OpenSTA built in) | conda `litex-hub` | `f12e2f474` |
 | Yosys + ABC | conda `conda-forge` | `0.65` |
-| KLayout | apt (Ubuntu universe) | `0.28.16` |
-| ORFS flow scripts + sky130hd | git, pinned | `de0a109f4` (2022-03-03) |
+| KLayout | apt | `0.28.16` |
+| ORFS scripts + sky130hd | git | `de0a109f4` (same era as the OpenROAD binary) |
 
-ORFS is pinned to the era of the conda OpenROAD so its Tcl only uses commands
-present in that binary. Full detection log and rationale:
-[`docs/00_environment.md`](docs/00_environment.md). Captured versions:
-[`docs/tool_versions.txt`](docs/tool_versions.txt).
+Detection log + every gotcha (TLS MITM CA, per-tool conda envs, `pipefail`→bash,
+ORFS pin rationale): [`docs/00_environment.md`](docs/00_environment.md).
+Reproduce: `scripts/bootstrap.sh && source scripts/env.sh`.
 
 ## Flow
 
 ```mermaid
 flowchart LR
-  RTL["Verilog RTL"] --> Y["Yosys<br/>synth + map"]
+  RTL["Ibex RTL"] --> Y["Yosys<br/>synth + map"]
   Y --> FP["Floorplan<br/>+ PDN + tapcells"]
   FP --> PL["Global place<br/>RePlAce → resize → OpenDP"]
   PL --> CTS["TritonCTS"]
@@ -59,58 +56,66 @@ flowchart LR
   FIN --> GDS["KLayout<br/>GDS merge"]
 ```
 
-## Quickstart
-
 ```bash
-# 1. one-time toolchain bring-up (Miniforge + conda envs + ORFS pin)
-scripts/bootstrap.sh
-source scripts/env.sh
-
-# 2. prove the flow end-to-end on the smallest design
-make smoke                 # gcd/sky130hd -> routed DEF, 0 DRC
-
-# 3. signoff + QoR on it
-make finish                # fill + OpenRCX SPEF + GDS
-make sta                   # top-5 setup/hold paths + skew (uses extracted SPEF)
-make report                # parse logs -> reports/gcd_base_qor.md
-
-# 4. drive any config (clock ladder, util sweeps, Ibex) the same way
-make route CONFIG=config/<variant>.mk
+scripts/bootstrap.sh && source scripts/env.sh   # one-time toolchain
+make smoke                                       # gcd RTL→GDS proof
+make route  CONFIG=config/ibex/clk19.mk FLOW_VARIANT=clk19   # any variant
+make sta    CONFIG=config/ibex/clk19.mk FLOW_VARIANT=clk19   # top-5 paths + skew
+scripts/run_finish.sh   # full Ibex experiment batch (E1/E2/E3)
+scripts/gen_reports.sh  # raw logs → every markdown table in reports/
 ```
 
-Every `make` target is a thin wrapper over the pinned ORFS tree with our
-toolchain on `PATH`; see [`Makefile`](Makefile).
+## Final PPA per configuration
 
-## Repo layout
+Snapshot of [`reports/PPA_summary.md`](reports/PPA_summary.md). **base** is full
+post-route SPEF signoff; the sweeps are post-CTS/global-route (≈1.5 ns optimistic
+vs signoff — see [`docs/sta_deep_dive.md`](docs/sta_deep_dive.md)).
 
-```
-scripts/bootstrap.sh        reproducible toolchain install (idempotent)
-scripts/env.sh              PATH / tool handles / CA bundle (source it)
-scripts/sta/signoff_sta.tcl signoff STA: top-5 setup+hold, skew, area, power
-scripts/parse/parse_flow.py raw logs -> markdown QoR (no hand numbers)
-config/                     ORFS config.mk variants (clock ladder, sweeps)  [grows per stage]
-designs/                    RTL + constraints brought into the repo          [grows per stage]
-reports/                    GENERATED markdown tables
-docs/                       environment notes, STA/CTS field notes
-artifacts/screenshots/      layout images
-```
+| Configuration | Fmax (MHz) | Setup WS (ns) | Hold WS (ns) | Area (µm²) | Power (mW) |
+|---|--:|--:|--:|--:|--:|
+| 17.4 ns — signoff (SPEF, full route) | 53.0 | −1.454 | −0.721 | 212400 | 20.40 |
+| 22 ns — post-CTS | 49.7 | +1.891 | −0.067 | 181236 | 17.10 |
+| 19 ns (achievable) — post-CTS | 52.9 | +0.091 | −0.021 | 200371 | 20.60 |
+| 19 ns, WritebackStage=1 — post-CTS | 52.8 | +0.073 | −0.040 | 186649 | 18.00 |
+| 19 ns, util 40% — global-route | 53.0 | +0.137 | −0.029 | 195630 | 17.10 |
 
-## Results so far — `gcd` / sky130hd smoke
+**Findings:** Ibex on sky130hd is **logic-depth bound** — the critical path is a
+35-level instruction-fetch-address datapath that is **99 % cell delay, 1 % wire**;
+real Fmax ≈ **50 MHz** (≈20 ns at signoff, looser than the 17.4 ns ORFS default,
+which fails). Hold is **period-independent** and **skew-driven** (4.54 ns CTS skew
+→ −2.64 ns hold, repaired to −0.72 ns). E2/E3 below.
 
-Snapshot of [`reports/gcd_base_qor.md`](reports/gcd_base_qor.md) (produced by
-`make report`; clock 4.3647 ns from the design SDC):
+## Layout (routed Ibex, sky130hd)
 
-| Metric | Value |
-|---|---|
-| Setup worst slack (ns) | +0.4054 |
-| Hold worst slack (ns) | +0.5328 |
-| Setup/Hold violations | 0 / 0 |
-| Implied Fmax (MHz) | 252.6 |
-| Design area (µm²) | 4100 |
-| Total power (W) | 1.060e-03 |
-| Route wirelength (µm) | 10937 |
-| Route DRC violations | 0 |
+![Routed Ibex layout](artifacts/screenshots/ibex_base_layout.png)
 
-## Final PPA table / screenshots / resume bullets
+Square die, clustered standard-cell placement (sparse edges = 20 % utilization),
+power straps right — rendered headless with KLayout (`scripts/klayout_png.py`).
 
-_Filled in stage 6 once Ibex + the experiment matrix are complete._
+## Experiments (the differentiator)
+
+- **E1 — Fmax wall** ([`reports/E1_clock_sweep.md`](reports/E1_clock_sweep.md)):
+  setup +1.89 ns @ 22 ns → −0.02 @ 18 ns (knee) → −1.64 @ 15 ns; the closure wall
+  is ~18 ns post-CTS / ~20 ns signoff. Hold stays within ±0.07 ns with no period
+  trend. Critical endpoint never leaves the `instr_addr_o` fetch family
+  ([`reports/E1_path_migration.md`](reports/E1_path_migration.md)).
+- **E2 — pipelining** ([`reports/E2_pipelining.md`](reports/E2_pipelining.md)):
+  `WritebackStage` 0→1 leaves Fmax flat (52.9→52.8 MHz — wrong critical path) but
+  cuts **area −7 %** and **power −13 %**, at +1 cycle latency.
+- **E3 — utilization** ([`reports/E3_util_sweep.md`](reports/E3_util_sweep.md)):
+  20 %→40 % keeps Fmax flat while peak global-route usage climbs 29 %→55 %; **60 %
+  is placement-infeasible** (RePlAce GPL-0302 density wall).
+
+## Résumé bullets (numbers from this repo)
+
+- Drove **lowRISC Ibex (RV32, ~24k cells) RTL→GDSII on sky130** with
+  OpenROAD/Yosys/OpenSTA to **0-DRC** routing; built a parameterized **Make +
+  Python** flow that auto-extracts QoR (WNS/TNS, skew, power, congestion) from
+  tool logs with **zero hand-edited numbers**.
+- Characterized the timing-closure wall with a **clock-period ladder**: located
+  **Fmax ≈ 50 MHz**, root-caused the critical path (**35-level fetch datapath,
+  99 % cell delay**), and demonstrated hold is **period-independent / skew-driven**
+  (**4.54 ns** CTS skew; `repair_timing -hold` recovered **−2.64 → −0.72 ns**).
+- Ran **PPA experiments**: a `WritebackStage` pipelining flip cut **area 7 % /
+  power 13 %** (+1-cycle latency); a utilization sweep mapped the **congestion
+  wall** (placement infeasible at 60 % — RePlAce density limit).

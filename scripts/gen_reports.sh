@@ -41,4 +41,15 @@ PE --title "E3 — utilization sweep (Ibex / 19 ns, post-global-route)" --rowlab
   --note "_'Area' is placed **cell** area (≈constant — identical netlist); the knob shrinks the **canvas**. Timing is logic-bound, so Fmax barely moves 20→40%, but peak global-route usage on the busiest layer climbs **29%→55%** as the die tightens. At 60% the buffered netlist needs ~76% density yet the die offers only 60% → RePlAce **GPL-0302, placement infeasible** (the density wall). Here density costs **congestion**, not speed — until it costs you routability entirely._" \
   --out reports/E3_util_sweep.md
 
+# --- Final PPA summary across the headline configs ---
+PE --title "Final PPA per configuration" --rowlabel "Configuration" \
+  --cols fmax,setup_ws,hold_ws,area,power \
+  --variant base:"17.4 ns — signoff (SPEF, full route)" \
+  --variant clk22:"22 ns — post-CTS" \
+  --variant clk19:"19 ns (achievable) — post-CTS" \
+  --variant wb1:"19 ns, WritebackStage=1 — post-CTS" \
+  --variant util40:"19 ns, util 40% — global-route" \
+  --note "_Stage differs by row (labelled): base is full post-route SPEF signoff; sweeps are post-CTS/global-route (optimistic by ~1.5 ns vs signoff — see docs/sta_deep_dive.md). 'Area' is placed cell area._" \
+  --out reports/PPA_summary.md
+
 echo "all reports regenerated"

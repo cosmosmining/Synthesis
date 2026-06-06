@@ -104,8 +104,15 @@ useful skew here, which is part of why these paths stay red.
 - **E1 — Fmax wall** (`reports/E1_clock_sweep.md`): wall ~18 ns post-CTS / ~20 ns
   signoff (~50 MHz). Critical path = instruction-fetch address, stable down the
   ladder → that datapath is the pipelining target.
-- **E2 — pipelining** (`reports/E2_pipelining.md`): Ibex `WritebackStage` 0→1
-  (2- vs 3-stage). _Numbers + verdict in §E2 after the run lands._
+- **E2 — pipelining** (`reports/E2_pipelining.md`): `WritebackStage` 0→1 (2→3
+  stage). Fmax is **flat (52.9 → 52.8 MHz)** — the bottleneck is the fetch-address
+  path (§1), which the writeback stage doesn't touch, so pipelining the *wrong*
+  stage buys no speed. But it cut **area −7 % (200k → 187k µm²)** and **power
+  −13 % (20.6 → 18.0 mW)**: the shorter writeback / load-use paths need far less
+  timing-closure buffering, which outweighs the added pipeline registers. Cost:
+  **+1 cycle load-use latency** (a CPI hit PPA doesn't show). The lesson I'd give
+  at the whiteboard: *pipelining only raises Fmax when it shortens the actual
+  critical path* — measure first, then cut.
 - **E3 — utilization** (`reports/E3_util_sweep.md`): 20 %→40 % keeps Fmax flat
   (logic-bound) while peak global-route usage climbs 29 %→55 %; **60 % is
   placement-infeasible** (RePlAce GPL-0302, needs 76 % density). Density buys
