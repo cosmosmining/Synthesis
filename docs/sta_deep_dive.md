@@ -60,9 +60,10 @@ insertion/skew) — or, where a specific launch/capture pair allows it, delibera
 
 ## Methodology note (so the experiment numbers are honest)
 The E1 clock ladder is reported **post-CTS with placement-estimated parasitics**
-(fast, lets us sweep). That runs **optimistic** versus this SPEF signoff: e.g.
-`clk19` post-CTS shows **+0.09 ns** setup, but extrapolating the SPEF pessimism
-seen here (~1.5 ns at 17.4 ns) the same point would be negative at signoff. So:
-**use the E1 ladder for the *shape* (the wall, path migration); use this SPEF
-signoff for the *absolute* truth.** The real Fmax edge is looser than the
-post-CTS sweep suggests.
+(fast, lets us sweep). That runs **optimistic** versus SPEF signoff — and I
+measured the gap: `clk22` is **+1.89 ns** post-CTS but **−0.087 ns** at full
+SPEF signoff (`reports/E1b_signoff_sweep.md`), a **~2 ns** pessimism swing. So
+**use the E1 ladder for the *shape* (wall, path migration); use the E1b SPEF
+sweep for the *absolute* truth**: the real setup wall is **~22 ns (≈45 MHz)**,
+not the ~18 ns the post-CTS sweep suggests. And hold (§ above) stays −0.5…−0.8 ns
+at every clock — setup-closable, hold-limited by the clock tree.

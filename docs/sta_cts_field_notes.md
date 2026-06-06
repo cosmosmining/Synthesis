@@ -27,19 +27,21 @@ What actually eats the 17.4 ns:
   path,
 - **3.48 ns** `set_output_delay` (0.2·P) off-chip budget.
 
-E1 makes the dependence on `T_period` literal — setup slack vs clock:
+E1 makes the dependence on `T_period` literal. **Post-CTS**
+(`reports/E1_clock_sweep.md`):
 
-| Clock | 22 | 20 | 19 | 18 | 16 |
-|--|--|--|--|--|--|
-| setup WNS (ns), post-CTS | +1.89 | +0.16 | +0.09 | −0.02 | −0.95 |
+| Clock (ns) | 19 | 18 | 16 | 15 |
+|--|--|--|--|--|
+| setup WNS (ns) | +0.09 | −0.02 | −0.95 | −1.64 |
 
-≈ **0.6 ns of slack per ns of period** (the 1:1-ish term in the inequality, minus
-clock-path scaling). Post-CTS the wall is **~18 ns**; the SPEF signoff is ~1.5 ns
-more pessimistic (base 17.4 ns → −1.45), so the *real* achievable is **~20 ns →
-Fmax ≈ 50 MHz**. See `reports/E1_clock_sweep.md`. The critical endpoint stays in
-the **`instr_addr_o` fetch-address family** the whole way down
-(`reports/E1_path_migration.md`) — it doesn't migrate to another block, it just
-goes more negative, which says *that one datapath* is what to pipeline.
+≈ **0.5 ns of slack per ns of period** — post-CTS setup crosses 0 at ~18–19 ns.
+But post-CTS is **~2 ns optimistic**: at full **SPEF signoff**
+(`reports/E1b_signoff_sweep.md`) the wall is **~22 ns**, where setup just closes
+(WNS −0.09, a single near-critical path) → **Fmax ≈ 45 MHz**; the 17.4 ns default
+fails by −1.45. The critical endpoint never leaves the **`instr_addr_o`
+fetch-address family** down the whole ladder (`reports/E1_path_migration.md`) —
+it doesn't migrate, it just goes more negative, so *that one datapath* is the
+pipelining target.
 
 ## 2. Hold — why period can't save it, and why it waits for CTS
 
@@ -101,9 +103,13 @@ the fat hold margin those paths have for setup. ORFS doesn't do per-endpoint
 useful skew here, which is part of why these paths stay red.
 
 ## 7. Experiments → theory (my results)
-- **E1 — Fmax wall** (`reports/E1_clock_sweep.md`): wall ~18 ns post-CTS / ~20 ns
-  signoff (~50 MHz). Critical path = instruction-fetch address, stable down the
-  ladder → that datapath is the pipelining target.
+- **E1 — Fmax wall** (`reports/E1_clock_sweep.md` post-CTS,
+  `reports/E1b_signoff_sweep.md` signoff): wall ~18–19 ns post-CTS, **~22 ns
+  (≈45 MHz) at SPEF signoff** (post-CTS ran ~2 ns optimistic). Critical path =
+  instruction-fetch address, stable down the ladder → that datapath is the
+  pipelining target. Hold is the *actual* blocker: −0.5…−0.8 ns at every clock
+  (skew-bound, §2), so the design is setup-closable but not hold-clean without
+  CTS rebalancing.
 - **E2 — pipelining** (`reports/E2_pipelining.md`): `WritebackStage` 0→1 (2→3
   stage). Fmax is **flat (52.9 → 52.8 MHz)** — the bottleneck is the fetch-address
   path (§1), which the writeback stage doesn't touch, so pipelining the *wrong*

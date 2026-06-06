@@ -74,16 +74,21 @@ vs signoff — see [`docs/sta_deep_dive.md`](docs/sta_deep_dive.md)).
 | Configuration | Fmax (MHz) | Setup WS (ns) | Hold WS (ns) | Area (µm²) | Power (mW) |
 |---|--:|--:|--:|--:|--:|
 | 17.4 ns — signoff (SPEF, full route) | 53.0 | −1.454 | −0.721 | 212400 | 20.40 |
-| 22 ns — post-CTS | 49.7 | +1.891 | −0.067 | 181236 | 17.10 |
-| 19 ns (achievable) — post-CTS | 52.9 | +0.091 | −0.021 | 200371 | 20.60 |
+| 22 ns — signoff (SPEF, full route) | 45.3 | −0.087 | −0.797 | 181236 | 18.50 |
+| 19 ns — post-CTS | 52.9 | +0.091 | −0.021 | 200371 | 20.60 |
 | 19 ns, WritebackStage=1 — post-CTS | 52.8 | +0.073 | −0.040 | 186649 | 18.00 |
 | 19 ns, util 40% — global-route | 53.0 | +0.137 | −0.029 | 195630 | 17.10 |
 
 **Findings:** Ibex on sky130hd is **logic-depth bound** — the critical path is a
-35-level instruction-fetch-address datapath that is **99 % cell delay, 1 % wire**;
-real Fmax ≈ **50 MHz** (≈20 ns at signoff, looser than the 17.4 ns ORFS default,
-which fails). Hold is **period-independent** and **skew-driven** (4.54 ns CTS skew
-→ −2.64 ns hold, repaired to −0.72 ns). E2/E3 below.
+35-level instruction-fetch-address datapath that is **99 % cell delay, 1 % wire**.
+At post-route **SPEF signoff** ([`reports/E1b_signoff_sweep.md`](reports/E1b_signoff_sweep.md))
+setup essentially closes at **~22 ns (WNS −0.09 → Fmax ≈ 45 MHz)**; the 17.4 ns
+ORFS default fails by −1.45 ns (post-CTS estimates ran **~2 ns optimistic**).
+**Hold stays −0.5…−0.8 ns at every clock** — it's bound by the **4.54 ns CTS
+skew**, not the period, so the design is **setup-closable but hold-limited**: the
+real closure blocker is the clock tree (needs CTS rebalancing, not a slower
+clock), and `repair_timing -hold` only recovered it from −2.64 to −0.72 ns. A
+sharper, more honest result than a trivially clean design.
 
 ## Layout (routed Ibex, sky130hd)
 
@@ -94,11 +99,12 @@ power straps right — rendered headless with KLayout (`scripts/klayout_png.py`)
 
 ## Experiments (the differentiator)
 
-- **E1 — Fmax wall** ([`reports/E1_clock_sweep.md`](reports/E1_clock_sweep.md)):
-  setup +1.89 ns @ 22 ns → −0.02 @ 18 ns (knee) → −1.64 @ 15 ns; the closure wall
-  is ~18 ns post-CTS / ~20 ns signoff. Hold stays within ±0.07 ns with no period
-  trend. Critical endpoint never leaves the `instr_addr_o` fetch family
-  ([`reports/E1_path_migration.md`](reports/E1_path_migration.md)).
+- **E1 — Fmax wall** (post-CTS [`E1_clock_sweep.md`](reports/E1_clock_sweep.md);
+  signoff [`E1b_signoff_sweep.md`](reports/E1b_signoff_sweep.md)): post-CTS setup
+  crosses 0 at ~18–19 ns; **SPEF signoff** puts the real wall at **~22 ns
+  (≈45 MHz)**. Hold is period-independent (±0.07 ns post-CTS; −0.5…−0.8 ns
+  signoff). Critical endpoint never leaves the `instr_addr_o` fetch family
+  ([`E1_path_migration.md`](reports/E1_path_migration.md)).
 - **E2 — pipelining** ([`reports/E2_pipelining.md`](reports/E2_pipelining.md)):
   `WritebackStage` 0→1 leaves Fmax flat (52.9→52.8 MHz — wrong critical path) but
   cuts **area −7 %** and **power −13 %**, at +1 cycle latency.
@@ -106,16 +112,24 @@ power straps right — rendered headless with KLayout (`scripts/klayout_png.py`)
   20 %→40 % keeps Fmax flat while peak global-route usage climbs 29 %→55 %; **60 %
   is placement-infeasible** (RePlAce GPL-0302 density wall).
 
-## Résumé bullets (numbers from this repo)
+## Résumé bullets (every number traceable to a report here)
 
-- Drove **lowRISC Ibex (RV32, ~24k cells) RTL→GDSII on sky130** with
-  OpenROAD/Yosys/OpenSTA to **0-DRC** routing; built a parameterized **Make +
-  Python** flow that auto-extracts QoR (WNS/TNS, skew, power, congestion) from
-  tool logs with **zero hand-edited numbers**.
-- Characterized the timing-closure wall with a **clock-period ladder**: located
-  **Fmax ≈ 50 MHz**, root-caused the critical path (**35-level fetch datapath,
-  99 % cell delay**), and demonstrated hold is **period-independent / skew-driven**
-  (**4.54 ns** CTS skew; `repair_timing -hold` recovered **−2.64 → −0.72 ns**).
-- Ran **PPA experiments**: a `WritebackStage` pipelining flip cut **area 7 % /
-  power 13 %** (+1-cycle latency); a utilization sweep mapped the **congestion
-  wall** (placement infeasible at 60 % — RePlAce density limit).
+- Implemented **lowRISC Ibex (RV32 core, ~24k placed instances) RTL→GDSII on the
+  open sky130 PDK** with OpenROAD / Yosys / OpenSTA, reaching **0-DRC** detailed
+  routing; built a parameterized **Make + Python** flow that auto-extracts all QoR
+  (WNS/TNS, skew, insertion, power, congestion) from tool logs — **zero
+  hand-edited numbers** across 10 staged commits.
+- Ran **post-route signoff STA on extracted SPEF**: located the **Fmax wall at
+  ~22 ns (≈45 MHz)** via a clock-period ladder, root-caused the critical path as a
+  **35-level instruction-fetch datapath (99 % cell-delay, 1 % wire)**, and showed
+  post-CTS estimates ran **~2 ns optimistic** vs SPEF signoff.
+- Root-caused a **hold-closure limit as clock-skew-bound, not period-bound**:
+  characterized TritonCTS **skew 4.54 ns / insertion 6.84 ns** over a **126-buffer
+  dual clock tree**, with CTS-created hold (**−2.64 ns**) recovered to **−0.72 ns**
+  by `repair_timing -hold`, and demonstrated hold's period-independence across a
+  15–22 ns sweep.
+- Ran **PPA trade-off experiments**: an Ibex **`WritebackStage` pipelining flip
+  cut area 7 % and power 13 %** (+1-cycle latency) with Fmax flat (critical path
+  elsewhere); a **utilization sweep** mapped the density wall — routable at 40 %
+  (peak global-route usage 55 %), **placement-infeasible at 60 %** (RePlAce
+  GPL-0302).
