@@ -15,22 +15,28 @@ read_lef     $pdir/lef/sky130_fd_sc_hd.tlef
 read_lef     $pdir/lef/sky130_fd_sc_hd_merged.lef
 read_liberty $pdir/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 
+# Use the most-final stage available: signoff (SPEF) > routed > post-CTS.
 if {[file exists $res/6_final.def]} {
-  set def $res/6_final.def ; set sdc $res/6_final.sdc
+  set stage 6_final
+} elseif {[file exists $res/5_route.def]} {
+  set stage 5_route
 } else {
-  set def $res/5_route.def ; set sdc $res/5_route.sdc
+  set stage 4_cts
 }
-read_def $def
-read_sdc $sdc
+read_def $res/$stage.def
+read_sdc $res/$stage.sdc
 set_propagated_clock [all_clocks]
 
-if {[file exists $res/6_final.spef]} {
+if {[file exists $pdir/setRC.tcl]} { source $pdir/setRC.tcl }
+if {$stage eq "6_final" && [file exists $res/6_final.spef]} {
   read_spef $res/6_final.spef
-  puts "## design=$def  parasitics=extracted-SPEF"
+  puts "## design=$stage  parasitics=extracted-SPEF"
+} elseif {$stage eq "4_cts"} {
+  estimate_parasitics -placement
+  puts "## design=$stage  parasitics=estimate(placement, pre-route)"
 } else {
-  if {[file exists $pdir/setRC.tcl]} { source $pdir/setRC.tcl }
   estimate_parasitics -global_routing
-  puts "## design=$def  parasitics=estimate(global_routing)"
+  puts "## design=$stage  parasitics=estimate(global_routing)"
 }
 
 puts "\n===================== SETUP (max) : worst 5 endpoints ====================="
