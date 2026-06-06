@@ -74,6 +74,18 @@ def extract(log_dir, results_dir, reports_dir):
         except Exception:
             pass
 
+    # global-route congestion (E3) from FastRoute's final report
+    m["overflow"] = m["peak_usage"] = m["gr_wl"] = None
+    fr = os.path.join(log_dir, "5_1_fastroute.log")
+    if os.path.exists(fr):
+        t = open(fr, errors="ignore").read()
+        mt = re.search(r"^Total\s+\d+\s+\d+\s+([\d.]+)%\s+\d+\s*/\s*\d+\s*/\s*(\d+)", t, re.M)
+        if mt:
+            m["peak_usage"] = float(mt.group(1)); m["overflow"] = int(mt.group(2))
+        wl = re.search(r"Total wirelength:\s+(\d+)\s*um", t)
+        if wl:
+            m["gr_wl"] = int(wl.group(1))
+
     m["drc"] = last_match(timing_logs, r"Number of violations\s*=\s*(\d+)")
     m["cells"] = last_match([os.path.join(reports_dir, "synth_stat.txt")],
                             r"^\s*(\d+)\s+[0-9.eE+]+\s+cells", flags=re.M)

@@ -48,11 +48,16 @@ ORFS_MAKE = $(MAKE) --no-print-directory -C $(ORFS_FLOW) SHELL=/bin/bash \
     DESIGN_CONFIG=$(CONFIG_ABS) FLOW_VARIANT=$(FLOW_VARIANT) \
     OPENROAD_EXE=$(OPENROAD_EXE) YOSYS_CMD=$(YOSYS_CMD) KLAYOUT_CMD=$(KLAYOUT_CMD)
 
-.PHONY: synth floorplan place cts route finish smoke sta report qor clean help
+.PHONY: synth floorplan place cts route finish globalroute smoke sta report qor clean help
 .DEFAULT_GOAL := help
 
 synth floorplan place cts route finish:
 	$(ORFS_MAKE) $@
+
+# Stop after global routing (FastRoute): yields global-route timing + a
+# congestion report without paying for the (slow) detailed route. Used by E3.
+globalroute:
+	$(ORFS_MAKE) results/$(PLATFORM)/$(DESIGN_NICK)/$(FLOW_VARIANT)/route.guide
 
 smoke:
 	$(ORFS_MAKE) route
