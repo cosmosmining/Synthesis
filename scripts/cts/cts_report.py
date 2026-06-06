@@ -52,15 +52,16 @@ def main():
         topo.append(dict(net=net, sinks=sinks, buffers=g(created), leaf=g(leaf),
                          minp=g(minbuf), maxp=g(maxbuf), level=g(levels)))
 
-    # --- hold worst slack: pre-repair vs post-repair (path_delay min blocks) ---
-    pre_hold  = worst_slack_in_block(cts, r"cts pre-repair report_checks -path_delay min",
-                                     r"report_checks -path_delay max")
-    post_hold = worst_slack_in_block(cts, r"cts post-repair report_checks -path_delay min",
-                                     r"report_checks -path_delay max")
+    # --- hold worst slack: the violations CTS creates (post-CTS, before the
+    #     dedicated hold-repair that ORFS runs during routing). The CTS-stage
+    #     "post-repair" report is setup-only, so hold is unchanged there; the
+    #     real hold recovery shows up at signoff. ---
+    pre_hold = worst_slack_in_block(cts, r"cts pre-repair report_checks -path_delay min",
+                                    r"report_checks -path_delay max")
 
-    # --- propagated skew + insertion from signoff STA report ---
+    # --- propagated skew + insertion + signoff hold from the STA report ---
     sta = os.path.join(a.reports_dir, "signoff_sta.rpt")
-    skew = lat = None
+    skew = lat = signoff_hold = None
     if os.path.exists(sta):
         t = open(sta, errors="ignore").read()
         seg = t[t.find("CLOCK SKEW"): t.find("WNS / TNS")] if "CLOCK SKEW" in t else ""
@@ -69,6 +70,9 @@ def main():
             skew = float(nums[-1][2])
         lats = [float(x) for x in re.findall(r"^\s+(\d+\.\d+)\s*$", seg, re.M)]
         lat = max(lats) if lats else None
+        mh = re.search(r"hold +worst slack:\s*(-?[0-9.eE+-]+)", t)
+        if mh:
+            signoff_hold = float(mh.group(1))
 
     clk_bufs_total = q.fnum(sum(int(c) for c in created)) if created else None
 
@@ -82,17 +86,21 @@ def main():
          f"| Clock skew (ns) | 0 (by definition) | {q.fmt(skew, '{:.3f}')} |",
          f"| Insertion delay / latency (ns) | 0 | {q.fmt(lat, '{:.3f}')} |",
          f"| Clock buffers added | 0 | {q.fmt(clk_bufs_total, '{:.0f}')} |",
-         f"| Hold worst slack — before repair (ns) | n/a (no skew) | {q.fmt(pre_hold, '{:+.3f}')} |",
-         f"| Hold worst slack — after repair (ns) | n/a | {q.fmt(post_hold, '{:+.3f}')} |",
+         f"| Hold WS — post-CTS, before hold-repair (ns) | n/a (no skew) | {q.fmt(pre_hold, '{:+.3f}')} |",
+         f"| Hold WS — signoff, after routing hold-repair (ns) | n/a | {q.fmt(signoff_hold, '{:+.3f}')} |",
          "",
          "**Why hold breaks at CTS and not before:** with an ideal clock the launch"
          " and capture edges are simultaneous, so short paths have huge hold margin."
          " CTS gives the clock real insertion delay and **skew** between launch and"
          " capture sinks; that skew eats directly into the hold budget"
          " (`slack_hold = t_clk2q + t_comb(min) - t_hold - skew`), creating the"
-         f" violations above (worst {q.fmt(pre_hold,'{:+.3f}')} ns). `repair_timing -hold`"
-         " then inserts delay cells until the post-repair worst hold is"
-         f" {q.fmt(post_hold,'{:+.3f}')} ns.", "",
+         f" violations above (worst **{q.fmt(pre_hold,'{:+.3f}')} ns** at this"
+         f" {q.fmt(skew,'{:.2f}')} ns skew). `repair_timing -hold` (run during routing,"
+         " not at CTS) inserts delay cells and recovers hold to"
+         f" **{q.fmt(signoff_hold,'{:+.3f}')} ns** at signoff"
+         + (" — improved but not fully closed, because 17.4 ns over-constrains this"
+            " design (see E1: hold closes at the achievable clock)."
+            if (signoff_hold is not None and signoff_hold < 0) else ".") + "", "",
          "## Clock-tree topology"]
 
     for d in topo:
@@ -114,8 +122,8 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     open(a.out, "w").write("\n".join(L))
     print(f"wrote {a.out}")
-    print(f"  pre-repair hold WS:  {pre_hold}")
-    print(f"  post-repair hold WS: {post_hold}")
+    print(f"  post-CTS hold WS (pre hold-repair): {pre_hold}")
+    print(f"  signoff hold WS (post repair):      {signoff_hold}")
     print(f"  skew={skew} insertion={lat} clk_bufs_total={clk_bufs_total}")
     for d in topo:
         print(f"  {d['net']}: sinks={d['sinks']} bufs={d['buffers']} levels={d['level']}")
