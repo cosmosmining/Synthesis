@@ -99,6 +99,16 @@ def extract(log_dir, results_dir, reports_dir):
         except Exception:
             m["clk_buffers"] = None
 
+    # Completeness guard: a run that never reached CTS (e.g. placement failed on
+    # a too-dense floorplan) has only meaningless pre-placement "worst slack".
+    # Null its timing so it shows n/a rather than a misleading number.
+    reached_cts = (os.path.exists(os.path.join(results_dir, "4_cts.def")) or
+                   os.path.exists(os.path.join(results_dir, "5_route.def")))
+    m["incomplete"] = not reached_cts
+    if not reached_cts:
+        for k in ("setup_ws", "hold_ws", "tns"):
+            m[k] = None
+
     # derived: min period the worst path could meet, and implied Fmax
     m["achievable"] = m["fmax"] = None
     if m["period"] is not None and m["setup_ws"] is not None:
