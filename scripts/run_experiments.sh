@@ -12,12 +12,13 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 LOGD="${LOGD:-/tmp/exp_logs}"; mkdir -p "$LOGD"
+STAGE="${STAGE:-route}"          # cts (fast, for E1) | route | finish (SPEF baseline)
 
 for fv in "$@"; do
   cfg="config/ibex/${fv}.mk"
   if [ ! -f "$cfg" ]; then echo "SKIP $fv (no $cfg)"; continue; fi
-  echo "=== [$(date +%H:%M:%S)] START $fv ==="
-  if make route CONFIG="$cfg" FLOW_VARIANT="$fv" >"$LOGD/${fv}.route.log" 2>&1; then
+  echo "=== [$(date +%H:%M:%S)] START $fv (stage=$STAGE) ==="
+  if make "$STAGE" CONFIG="$cfg" FLOW_VARIANT="$fv" >"$LOGD/${fv}.${STAGE}.log" 2>&1; then
     if make sta CONFIG="$cfg" FLOW_VARIANT="$fv" >"$LOGD/${fv}.sta.log" 2>&1; then
       ws=$(grep -m1 "setup worst slack:" "$LOGD/${fv}.sta.log" | awk '{print $4}')
       echo "=== [$(date +%H:%M:%S)] DONE  $fv  setup_ws=${ws:-?} ==="
