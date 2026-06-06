@@ -1,0 +1,28 @@
+# --- ORFS working tree (cloned externally by scripts/bootstrap.sh, never vendored) ---
+/ORFS/
+flow/results/
+flow/logs/
+flow/objects/
+flow/reports/
+
+# --- Tool envs (created by bootstrap, not committed) ---
+/opt/
+*.conda
+miniforge*.sh
+
+# --- Generated raw artifacts we don't want in git (the *parsed* markdown lives in reports/) ---
+artifacts/raw/
+*.def
+*.gds
+*.gds.gz
+*.spef
+*.odb
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+
+# --- Editor / OS ---
+*.swp
+.DS_Store
